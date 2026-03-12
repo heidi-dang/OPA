@@ -1,4 +1,3 @@
-#!/ [OLD SCRIPT CONTENT REDACTED] - I am overwriting the file.
 #!/bin/bash
 
 # OpenCode Plugin Installer Script
