@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function fuzzBypass(targetUrl: string, parameters: Record<string, string>, fuzzStrategy: string = 'increment'): Promise<string> {
     // Generate a basic python script to run a loop or fuzzing routine against the target inside the sandbox

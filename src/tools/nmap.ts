@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function nmapScan(target: string, args: string = '-T4 -F'): Promise<string> {
     // Note: In an actual production environment, a custom E2B template 

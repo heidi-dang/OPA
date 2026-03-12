@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function diagnoseIspThrottling(targetServer: string): Promise<string> {
     console.log(`[Tool: diagnose_isp_throttling] Testing throughput to ${targetServer} to detect port-based traffic shaping...`);

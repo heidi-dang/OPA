@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 export async function nmapScan(target, args = '-T4 -F') {
     // Note: In an actual production environment, a custom E2B template 
     // with standard security tools pre-installed (nmap, ffuf, nuclei) would be used.

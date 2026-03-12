@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 // Requires ETHERSCAN_API_KEY environment variable to be set
 const ETHERSCAN_URL = 'https://api.etherscan.io/api';
 export async function cryptoAudit(targetAddress, chain = 'ethereum') {

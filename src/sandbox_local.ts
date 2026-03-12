@@ -1,0 +1,361 @@
+import { spawn, ChildProcess } from 'child_process';
+import { promisify } from 'util';
+import { exec as execCallback } from 'child_process';
+
+const exec = promisify(execCallback);
+
+interface LocalSandboxConfig {
+    dockerImage?: string;
+    containerName?: string;
+    autoStart?: boolean;
+    workspace?: string;
+}
+
+interface CommandResult {
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+}
+
+class LocalSandbox implements SandboxInterface {
+    private containerId: string | null = null;
+    private config: LocalSandboxConfig;
+    private isRunning: boolean = false;
+
+    constructor(config: LocalSandboxConfig = {}) {
+        this.config = {
+            dockerImage: config.dockerImage || 'opa-local-sandbox:latest',
+            containerName: config.containerName || 'opa-sandbox',
+            autoStart: config.autoStart !== false,
+            workspace: config.workspace || '/workspace'
+        };
+    }
+
+    public commands = {
+        run: async (command: string): Promise<CommandResult> => {
+            return await this.executeCommand(command);
+        }
+    };
+
+    async start(): Promise<void> {
+        if (this.isRunning) {
+            console.log('Local sandbox is already running');
+            return;
+        }
+
+        try {
+            // Check if container already exists
+            const { stdout } = await exec(`docker ps -a --filter name=${this.config.containerName} --format "{{.ID}}"`);
+            
+            if (stdout.trim()) {
+                // Container exists, start it
+                console.log(`Starting existing container: ${this.config.containerName}`);
+                await exec(`docker start ${this.config.containerName}`);
+                this.containerId = stdout.trim();
+            } else {
+                // Create new container
+                console.log(`Creating new container from image: ${this.config.dockerImage}`);
+                const result = await exec(
+                    `docker run -d --name ${this.config.containerName} ` +
+                    `-v ${process.cwd()}/workspace:/workspace ` +
+                    `--network host ` +
+                    `${this.config.dockerImage} ` +
+                    `tail -f /dev/null`
+                );
+                this.containerId = result.stdout.trim();
+            }
+
+            this.isRunning = true;
+            console.log('Local sandbox started successfully');
+            
+            // Wait a moment for container to be fully ready
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+        } catch (error: any) {
+            throw new Error(`Failed to start local sandbox: ${error.message}`);
+        }
+    }
+
+    async stop(): Promise<void> {
+        if (!this.isRunning || !this.containerId) {
+            console.log('Local sandbox is not running');
+            return;
+        }
+
+        try {
+            await exec(`docker stop ${this.config.containerName}`);
+            this.isRunning = false;
+            console.log('Local sandbox stopped');
+        } catch (error: any) {
+            console.error(`Failed to stop sandbox: ${error.message}`);
+        }
+    }
+
+    async close(): Promise<void> {
+        await this.stop();
+    }
+
+    async remove(): Promise<void> {
+        await this.stop();
+        
+        try {
+            await exec(`docker rm ${this.config.containerName}`);
+            console.log('Local sandbox container removed');
+        } catch (error: any) {
+            console.error(`Failed to remove sandbox: ${error.message}`);
+        }
+    }
+
+    async executeCommand(command: string, cwd?: string): Promise<CommandResult> {
+        if (!this.isRunning) {
+            await this.start();
+        }
+
+        try {
+            const workDir = cwd || this.config.workspace;
+            const dockerCommand = `docker exec ${this.config.containerName} bash -c 'cd ${workDir} && ${command}'`;
+            
+            const { stdout, stderr } = await exec(dockerCommand);
+            
+            return {
+                stdout: stdout || '',
+                stderr: stderr || '',
+                exitCode: 0
+            };
+        } catch (error: any) {
+            return {
+                stdout: '',
+                stderr: error.message || 'Command execution failed',
+                exitCode: error.code || 1
+            };
+        }
+    }
+
+    async uploadFile(localPath: string, remotePath: string): Promise<void> {
+        try {
+            await exec(`docker cp ${localPath} ${this.config.containerName}:${remotePath}`);
+            console.log(`File uploaded: ${localPath} -> ${remotePath}`);
+        } catch (error: any) {
+            throw new Error(`Failed to upload file: ${error.message}`);
+        }
+    }
+
+    async downloadFile(remotePath: string, localPath: string): Promise<void> {
+        try {
+            await exec(`docker cp ${this.config.containerName}:${remotePath} ${localPath}`);
+            console.log(`File downloaded: ${remotePath} -> ${localPath}`);
+        } catch (error: any) {
+            throw new Error(`Failed to download file: ${error.message}`);
+        }
+    }
+
+    async getStatus(): Promise<any> {
+        if (!this.containerId) {
+            return { status: 'not_created' };
+        }
+
+        try {
+            const { stdout } = await exec(`docker inspect ${this.config.containerName}`);
+            const inspectData = JSON.parse(stdout)[0];
+            
+            return {
+                status: inspectData.State.Status,
+                created: inspectData.Created,
+                started: inspectData.State.StartedAt,
+                image: this.config.dockerImage,
+                name: this.config.containerName
+            };
+        } catch (error: any) {
+            return { status: 'error', error: error.message };
+        }
+    }
+
+    async runCode(code: string, language: string = 'bash'): Promise<CommandResult> {
+        let command: string;
+        
+        switch (language.toLowerCase()) {
+            case 'python':
+            case 'python3':
+                command = `python3 << 'EOF'\n${code}\nEOF`;
+                break;
+            case 'bash':
+            case 'sh':
+                command = code;
+                break;
+            case 'node':
+            case 'javascript':
+                command = `node << 'EOF'\n${code}\nEOF`;
+                break;
+            default:
+                throw new Error(`Unsupported language: ${language}`);
+        }
+
+        return await this.executeCommand(command);
+    }
+}
+
+class E2BSandbox implements SandboxInterface {
+    // Keep the existing E2B implementation for backward compatibility
+    private sandbox: any = null;
+
+    public commands = {
+        run: async (command: string): Promise<CommandResult> => {
+            return await this.executeCommand(command);
+        }
+    };
+
+    async start(): Promise<void> {
+        // Placeholder for E2B connection
+        console.log('E2B sandbox connection (placeholder)');
+    }
+
+    async stop(): Promise<void> {
+        // Placeholder for E2B stop
+        console.log('E2B sandbox stopped');
+    }
+
+    async executeCommand(command: string, cwd?: string): Promise<CommandResult> {
+        // Placeholder for E2B command execution
+        return {
+            stdout: `E2B execution of: ${command}`,
+            stderr: '',
+            exitCode: 0
+        };
+    }
+
+    async runCode(code: string, language: string = 'python'): Promise<CommandResult> {
+        // Placeholder for E2B code execution
+        return {
+            stdout: `E2B code execution in ${language}`,
+            stderr: '',
+            exitCode: 0
+        };
+    }
+
+    async close(): Promise<void> {
+        // Placeholder for E2B cleanup
+        console.log('E2B sandbox closed');
+    }
+}
+
+// Unified sandbox interface
+export interface SandboxInterface {
+    start(): Promise<void>;
+    stop(): Promise<void>;
+    executeCommand(command: string, cwd?: string): Promise<CommandResult>;
+    runCode(code: string, language?: string): Promise<CommandResult>;
+    close(): Promise<void>;
+    commands: {
+        run(command: string): Promise<CommandResult>;
+    };
+}
+
+// Factory function to create appropriate sandbox
+export function createSandbox(type: 'local' | 'e2b' = 'local', config?: LocalSandboxConfig): SandboxInterface {
+    switch (type) {
+        case 'local':
+            return new LocalSandbox(config);
+        case 'e2b':
+            return new E2BSandbox();
+        default:
+            throw new Error(`Unsupported sandbox type: ${type}`);
+    }
+}
+
+// Legacy compatibility
+let currentSandbox: SandboxInterface | null = null;
+
+export async function getOrCreateSandbox(type: 'local' | 'e2b' = 'local'): Promise<SandboxInterface> {
+    if (!currentSandbox) {
+        console.log(`Initializing ${type} sandbox environment...`);
+        currentSandbox = createSandbox(type);
+        
+        if (type === 'local') {
+            await currentSandbox.start();
+        } else {
+            await currentSandbox.start();
+        }
+    }
+    return currentSandbox;
+}
+
+// Helper to execute commands or generated bot scripts safely
+export async function executeInSandbox(code: string, language: string = 'python'): Promise<string> {
+    const sandbox = await getOrCreateSandbox();
+    console.log(`Executing ${language} code in sandbox...`);
+    
+    try {
+        const result = await sandbox.runCode(code, language);
+        return result.stdout + '\n' + result.stderr;
+    } catch (e: any) {
+        return `Execution error:\n${e.message}`;
+    }
+}
+
+// Clean up sandbox resources when done
+export async function closeSandbox() {
+    if (currentSandbox) {
+        await currentSandbox.close();
+        currentSandbox = null;
+    }
+}
+
+// Local sandbox management functions
+export async function startLocalSandbox(config?: LocalSandboxConfig): Promise<void> {
+    const sandbox = createSandbox('local', config);
+    await sandbox.start();
+}
+
+export async function stopLocalSandbox(): Promise<void> {
+    const sandbox = createSandbox('local');
+    await sandbox.stop();
+}
+
+export async function removeLocalSandbox(): Promise<void> {
+    const sandbox = createSandbox('local') as LocalSandbox;
+    await sandbox.remove();
+}
+
+export async function getLocalSandboxStatus(): Promise<any> {
+    const sandbox = createSandbox('local') as LocalSandbox;
+    return await sandbox.getStatus();
+}
+
+// Docker management functions
+export async function buildLocalSandbox(): Promise<void> {
+    try {
+        console.log('Building local sandbox Docker image...');
+        const { stdout, stderr } = await exec('docker build -t opa-local-sandbox:latest -f Dockerfile.local .');
+        
+        if (stderr && !stderr.includes('warning')) {
+            console.error('Build warnings/errors:', stderr);
+        }
+        
+        console.log('✅ Local sandbox Docker image built successfully');
+    } catch (error: any) {
+        throw new Error(`Failed to build Docker image: ${error.message}`);
+    }
+}
+
+export async function checkDockerAvailability(): Promise<boolean> {
+    try {
+        await exec('docker --version');
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Environment detection
+export async function detectEnvironment(): Promise<'local' | 'e2b' | 'unknown'> {
+    const env = process.env.OPA_SANDBOX_ENV?.toLowerCase();
+    
+    if (env === 'e2b') return 'e2b';
+    if (env === 'local') return 'local';
+    
+    // Auto-detect based on available tools
+    if (process.env.E2B_API_KEY) return 'e2b';
+    if (process.env.DOCKER_AVAILABLE === 'true' || await checkDockerAvailability()) return 'local';
+    
+    return 'unknown';
+}

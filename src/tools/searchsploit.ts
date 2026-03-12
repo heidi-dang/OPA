@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function searchsploitQuery(query: string): Promise<string> {
     // Use the local exploit-db search wrapper within the sandbox

@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function analyzeWpaHandshake(capFilePath: string): Promise<string> {
     console.log(`[Tool: analyze_wpa_handshake] Initiating offline dictionary analysis on ${capFilePath}`);

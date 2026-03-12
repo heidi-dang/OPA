@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 
 export async function parsePcap(filePath: string): Promise<string> {
     // Using tshark in the sandbox to parse the PCAP file

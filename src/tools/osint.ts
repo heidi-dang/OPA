@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { getOrCreateSandbox, closeSandbox } from '../sandbox.js';
+import { getOrCreateSandbox, closeSandbox } from '../sandbox_local.js';
 
 interface OSINTResult {
     domain: string;

@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 export async function runNuclei(target, templates = 'default') {
     // Determine template flags based on input
     const templateFlag = templates === 'default' ? '' : `-t ${templates}`;

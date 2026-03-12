@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 export async function sweepLocalNetwork() {
     // Uses Nmap within the sandbox to discover live hosts on the local subnets
     // We run a fast ping sweep on common private ranges

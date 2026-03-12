@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 export async function httpRequest(url, method = 'GET', headers = {}, body = '') {
     // We execute the HTTP request via curl in the sandbox so it comes from the isolated environment.
     let headerArgs = '';

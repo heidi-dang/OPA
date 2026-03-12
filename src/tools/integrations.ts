@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getOrCreateSandbox } from '../sandbox.js';
+import { getOrCreateSandbox } from '../sandbox_local.js';
 
 interface ToolConfig {
     host: string;

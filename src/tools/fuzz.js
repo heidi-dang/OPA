@@ -1,4 +1,4 @@
-import { executeInSandbox } from '../sandbox.js';
+import { executeInSandbox } from '../sandbox_local.js';
 export async function dirFuzz(url, wordlistTemplate = 'common.txt') {
     // Simulated ffuf or gobuster command using a basic wordlist mapped in the sandbox
     const command = `ffuf -w /usr/share/wordlists/${wordlistTemplate} -u ${url}/FUZZ`;

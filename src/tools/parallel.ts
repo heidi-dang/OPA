@@ -5,9 +5,9 @@ interface ToolTask {
     id: string;
     name: string;
     target: string;
-    args?: string;
+    args?: string | undefined;
     priority: 'high' | 'medium' | 'low';
-    timeout?: number;
+    timeout?: number | undefined;
     retries?: number;
 }
 
@@ -114,53 +114,52 @@ export class ParallelExecutionEngine extends EventEmitter {
                     case 'crypto_audit':
                         return await executeCryptoAudit(task.target, task.args, sandbox);
                     default:
-                        throw new Error(\`Unknown tool: \${task.name}\`);
+                        throw new Error('Unknown tool: ' + task.name);
                 }
             }
 
             async function executeNmap(target, args, sandbox) {
-                const cmd = args ? \`nmap \${args} \${target}\` : \`nmap -sS -sV -O \${target}\`;
+                const cmd = args ? 'nmap ' + args + ' ' + target : 'nmap -sS -sV -O ' + target;
                 const result = await sandbox.commands.run(cmd);
                 return result.stdout + result.stderr;
             }
 
             async function executeDirFuzz(target, args, sandbox) {
                 const wordlist = args || '/usr/share/wordlists/common.txt';
-                const cmd = \`ffuf -u http://\${target}/FUZZ -w \${wordlist} -mc 200,204,301,302\`;
+                const cmd = 'ffuf -u http://' + target + '/FUZZ -w ' + wordlist + ' -mc 200,204,301,302';
                 const result = await sandbox.commands.run(cmd);
                 return result.stdout + result.stderr;
             }
 
             async function executeNuclei(target, args, sandbox) {
                 const templateArgs = args ? '-t ' + args : '';
-                const cmd = \`nuclei -u \${target} \${templateArgs} -silent`;
+                const cmd = 'nuclei -u ' + target + ' ' + templateArgs + ' -silent';
                 const result = await sandbox.commands.run(cmd);
                 return result.stdout + result.stderr;
             }
 
             async function executeHttpRequest(target, args, sandbox) {
-                const cmd = args ? \`curl \${args} \${target}\` : \`curl -i \${target}\`;
+                const cmd = args ? 'curl ' + args + ' ' + target : 'curl -i ' + target;
                 const result = await sandbox.commands.run(cmd);
                 return result.stdout + result.stderr;
             }
 
             async function executeOsint(target, args, sandbox) {
-                // Basic OSINT commands
                 const commands = [
-                    \`whois \${target}\`,
-                    \`dig \${target} ANY\`,
-                    \`nslookup \${target}\`,
-                    \`host \${target}\`
+                    'whois ' + target,
+                    'dig ' + target + ' ANY',
+                    'nslookup ' + target,
+                    'host ' + target
                 ];
                 
                 let results = '';
                 for (const cmd of commands) {
                     try {
                         const result = await sandbox.commands.run(cmd);
-                        results += \`\n=== \${cmd} ===\n\`;
+                        results += '\\n=== ' + cmd + ' ===\\n';
                         results += result.stdout + result.stderr;
                     } catch (error) {
-                        results += \`\n=== \${cmd} ===\nERROR: \${error.message}\n\`;
+                        results += '\\n=== ' + cmd + ' ===\\nERROR: ' + error.message + '\\n';
                     }
                 }
                 
@@ -168,8 +167,7 @@ export class ParallelExecutionEngine extends EventEmitter {
             }
 
             async function executeCryptoAudit(target, args, sandbox) {
-                // Simulated crypto audit
-                const cmd = \`echo "Performing blockchain security analysis for \${target}..."\`;
+                const cmd = 'echo "Performing blockchain security analysis for ' + target + '..."';
                 const result = await sandbox.commands.run(cmd);
                 return result.stdout + result.stderr;
             }

@@ -1,4 +1,4 @@
-import { getOrCreateSandbox } from '../sandbox.js';
+import { getOrCreateSandbox } from '../sandbox_local.js';
 
 interface ToolTask {
     id: string;
