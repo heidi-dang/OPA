@@ -387,7 +387,7 @@ export class IntelligentSuggestionEngine implements SuggestionEngine {
      * Generate system status suggestions
      */
     private generateSystemSuggestions(context: SuggestionContext): Suggestion[] {
-        const suggestions = [];
+        const suggestions: Suggestion[] = [];
         
         if (context.systemStatus) {
             if (context.systemStatus.includes('error')) {
@@ -413,7 +413,7 @@ export class IntelligentSuggestionEngine implements SuggestionEngine {
                     action: 'execute',
                     reasoning: 'Performance optimization can improve tool execution speed',
                     estimatedTime: 90
-                });
+                } as Suggestion);
             }
             
             suggestions.push({
@@ -425,7 +425,7 @@ export class IntelligentSuggestionEngine implements SuggestionEngine {
                 action: 'execute',
                 reasoning: 'Regular health checks ensure optimal system performance',
                 estimatedTime: 60
-            });
+            } as Suggestion);
         }
         
         return suggestions;
@@ -481,7 +481,7 @@ Try:
             if (!acc[suggestion.category]) {
                 acc[suggestion.category] = [];
             }
-            acc[suggestion.category].push(suggestion);
+            acc[suggestion.category]!.push(suggestion);
             return acc;
         }, {} as Record<string, Suggestion[]>);
 

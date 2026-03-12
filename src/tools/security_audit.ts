@@ -15,7 +15,7 @@ interface SecurityIssue {
     category: string;
     description: string;
     file: string;
-    line?: number;
+    line?: number | undefined;
     recommendation: string;
     cwe?: string;
     owasp?: string;
@@ -193,11 +193,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Type Safety',
-                description: `Error during type safety audit: ${error.message}`,
+                description: `Error during type safety audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -278,25 +279,59 @@ export class SecurityAuditor {
 
                 // Check for XSS patterns
                 if (content.includes('innerHTML') || content.includes('outerHTML') || content.includes('document.write')) {
+                    const lineNumber = this.findLineNumber(content, 'innerHTML');
                     issues.push({
                         severity: 'high',
                         category: 'Input Validation & Sanitization',
                         description: 'Cross-site scripting (XSS) vulnerability',
                         file: file.replace(this.projectRoot + '/', ''),
-                        line: this.findLineNumber(content, 'innerHTML'),
                         recommendation: 'Use safe HTML rendering and input sanitization',
                         cwe: 'CWE-79: Cross-site Scripting',
-                        owasp: 'A03:2021 - Improper Neutralization of Input'
+                        owasp: 'A03:2021 - Improper Neutralization of Input',
+                        ...(lineNumber ? { line: lineNumber } : {})
                     });
                     scoreDeduction += 20;
                 }
+
+                // Check for unsafe eval usage
+                if (content.includes('eval(') || content.includes('Function(') || content.includes('setTimeout(')) {
+                    const lineNumber = this.findLineNumber(content, 'eval');
+                    issues.push({
+                        severity: 'critical',
+                        category: 'Input Validation & Sanitization',
+                        description: 'Dangerous "eval()" use detected',
+                        file: file.replace(this.projectRoot + '/', ''),
+                        recommendation: 'Use safer alternatives to eval()',
+                        cwe: 'CWE-94: Code Injection',
+                        owasp: 'A03:2021 - Injection',
+                        ...(lineNumber ? { line: lineNumber } : {})
+                    });
+                    scoreDeduction += 40;
+                }
+
+                // Check for Zod validation schema defined but not used
+                if (content.includes('.validate(') === false && content.includes('z.object')) {
+                    const lineNumber = this.findLineNumber(content, 'z.object');
+                    issues.push({
+                        severity: 'critical',
+                        category: 'Input Validation & Sanitization',
+                        description: 'Input validation schema defined but not used',
+                        file: file.replace(this.projectRoot + '/', ''),
+                        recommendation: 'Ensure all inputs are validated against schemas',
+                        cwe: 'CWE-20: Improper Input Validation',
+                        owasp: 'A03:2021 - Improper Neutralization of Input',
+                        ...(lineNumber ? { line: lineNumber } : {})
+                    });
+                    scoreDeduction += 25;
+                }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Input Validation & Sanitization',
-                description: `Error during input validation audit: ${error.message}`,
+                description: `Error during input validation audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -337,15 +372,16 @@ export class SecurityAuditor {
 
                 for (const pattern of credentialPatterns) {
                     if (pattern.test(content)) {
+                        const lineNumber = this.findLineNumber(content, 'password');
                         issues.push({
                             severity: 'critical',
                             category: 'Authentication & Authorization',
                             description: 'Hardcoded credentials detected',
                             file: file.replace(this.projectRoot + '/', ''),
-                            line: this.findLineNumber(content, 'password'),
                             recommendation: 'Remove hardcoded credentials and use secure credential management',
                             cwe: 'CWE-798: Use of Hard-coded Credentials',
-                            owasp: 'A07:2021 - Identification and Authentication Failures'
+                            owasp: 'A07:2021 - Identification and Authentication Failures',
+                            ...(lineNumber ? { line: lineNumber } : {})
                         });
                         scoreDeduction += 35;
                     }
@@ -353,40 +389,75 @@ export class SecurityAuditor {
 
                 // Check for weak authentication
                 if (content.includes('md5(') || content.includes('sha1(')) {
+                    const lineNumber = this.findLineNumber(content, 'md5(');
                     issues.push({
                         severity: 'high',
                         category: 'Authentication & Authorization',
                         description: 'Weak hashing algorithm detected',
                         file: file.replace(this.projectRoot + '/', ''),
-                        line: this.findLineNumber(content, 'md5('),
                         recommendation: 'Use strong hashing algorithms like bcrypt or Argon2',
                         cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm',
-                        owasp: 'A02:2021 - Cryptographic Failures'
+                        owasp: 'A02:2021 - Cryptographic Failures',
+                        ...(lineNumber ? { line: lineNumber } : {})
                     });
                     scoreDeduction += 15;
                 }
 
                 // Check for JWT without verification
                 if (content.includes('jwt.verify') === false || content.includes('jwt.secret')) {
+                    const lineNumber = this.findLineNumber(content, 'jwt');
                     issues.push({
                         severity: 'high',
                         category: 'Authentication & Authorization',
                         description: 'JWT without proper verification',
                         file: file.replace(this.projectRoot + '/', ''),
-                        line: this.findLineNumber(content, 'jwt'),
                         recommendation: 'Implement proper JWT verification and secret management',
                         cwe: 'CWE-347: Improper Verification of Cryptographic Signature',
-                        owasp: 'A02:2021 - Cryptographic Failures'
+                        owasp: 'A02:2021 - Cryptographic Failures',
+                        ...(lineNumber ? { line: lineNumber } : {})
+                    });
+                    scoreDeduction += 20;
+                }
+
+                // Check for potentially weak authentication logic (generic)
+                if (content.includes('auth') && !content.includes('jwt') && !content.includes('bcrypt')) {
+                    const lineNumber = this.findLineNumber(content, 'auth');
+                    issues.push({
+                        severity: 'medium',
+                        category: 'Authentication & Authorization',
+                        description: 'Potentially weak authentication logic',
+                        file: file.replace(this.projectRoot + '/', ''),
+                        recommendation: 'Use established authentication libraries',
+                        cwe: 'CWE-287: Improper Authentication',
+                        owasp: 'A07:2021 - Identification and Authentication Failures',
+                        ...(lineNumber ? { line: lineNumber } : {})
+                    });
+                    scoreDeduction += 15;
+                }
+
+                // Check for bcrypt hashing without verification
+                if (content.includes('verify(') === false && content.includes('bcrypt')) {
+                    const lineNumber = this.findLineNumber(content, 'bcrypt');
+                    issues.push({
+                        severity: 'high',
+                        category: 'Authentication & Authorization',
+                        description: 'Hashing used without verification',
+                        file: file.replace(this.projectRoot + '/', ''),
+                        recommendation: 'Implement proper password verification logic',
+                        cwe: 'CWE-307: Improper Restriction of Excessive Authentication Attempts',
+                        owasp: 'A07:2021 - Identification and Authentication Failures',
+                        ...(lineNumber ? { line: lineNumber } : {})
                     });
                     scoreDeduction += 20;
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Authentication & Authorization',
-                description: `Error during authentication audit: ${error.message}`,
+                description: `Error during authentication audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -471,11 +542,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Error Handling & Logging',
-                description: `Error during error handling audit: ${error.message}`,
+                description: `Error during error handling audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -517,15 +589,16 @@ export class SecurityAuditor {
 
                 for (const pattern of piiPatterns) {
                     if (pattern.test(content)) {
+                        const lineNumber = this.findLineNumber(content, 'email');
                         issues.push({
                             severity: 'critical',
                             category: 'Data Protection & Privacy',
                             description: 'Personally Identifiable Information (PII) exposure',
                             file: file.replace(this.projectRoot + '/', ''),
-                            line: this.findLineNumber(content, 'email'),
                             recommendation: 'Remove PII exposure and implement data protection',
                             cwe: 'CWE-359: Exposure of Private Personal Information',
-                            owasp: 'A03:2021 - Improper Neutralization of Input'
+                            owasp: 'A03:2021 - Improper Neutralization of Input',
+                            ...(lineNumber ? { line: lineNumber } : {})
                         });
                         scoreDeduction += 30;
                     }
@@ -546,11 +619,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Data Protection & Privacy',
-                description: `Error during data protection audit: ${error.message}`,
+                description: `Error during data protection audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -611,11 +685,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Network Security & Communication',
-                description: `Error during network security audit: ${error.message}`,
+                description: `Error during network security audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -685,11 +760,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Code Quality & Maintainability',
-                description: `Error during code quality audit: ${error.message}`,
+                description: `Error during code quality audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -770,11 +846,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Dependency Security & Vulnerabilities',
-                description: `Error during dependency audit: ${error.message}`,
+                description: `Error during dependency audit: ${error.message || String(error)}`,
+                file: 'package.json',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -810,9 +887,9 @@ export class SecurityAuditor {
                     const execPattern = /executeInSandbox\s*\(\s*['"][^'"]*\)/g;
                     const matches = content.match(execPattern);
                     
-                    if (matches && matches.length > 0) {
+                    if (matches && matches.length > 1) {
                         const command = matches[1];
-                        if (command.includes('req.body') || command.includes('userInput')) {
+                        if (command && (command.includes('req.body') || command.includes('userInput'))) {
                             issues.push({
                                 severity: 'critical',
                                 category: 'Sandbox & Execution Security',
@@ -844,11 +921,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Sandbox & Execution Security',
-                description: `Error during sandbox security audit: ${error.message}`,
+                description: `Error during sandbox security audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -910,11 +988,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'MCP Integration & API Security',
-                description: `Error during MCP security audit: ${error.message}`,
+                description: `Error during MCP security audit: ${error.message || String(error)}`,
+                file: 'N/A',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -973,11 +1052,12 @@ export class SecurityAuditor {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             issues.push({
                 severity: 'medium',
                 category: 'Configuration & Secrets Management',
-                description: `Error during configuration audit: ${error.message}`,
+                description: `Error during configuration audit: ${error.message || String(error)}`,
+                file: '.env*',
                 recommendation: 'Review audit process and fix any errors'
             });
         }
@@ -1012,7 +1092,8 @@ export class SecurityAuditor {
     private findLineNumber(content: string, pattern: string): number | undefined {
         const lines = content.split('\n');
         for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes(pattern)) {
+            const line = lines[i];
+            if (line && line.includes(pattern)) {
                 return i + 1;
             }
         }
@@ -1046,8 +1127,15 @@ export class SecurityAuditor {
     }
 
     /**
-     * Calculate overall security score
+     * Get overall status based on score
      */
+    private getOverallStatus(score: number): 'excellent' | 'good' | 'fair' | 'poor' | 'critical' {
+        if (score >= 90) return 'excellent';
+        if (score >= 80) return 'excellent'; 
+        if (score >= 70) return 'fair';
+        if (score >= 50) return 'poor';
+        return 'critical';
+    }
     private calculateOverallScore(auditResults: SecurityAudit[]): number {
         if (auditResults.length === 0) {
             return 100;
@@ -1102,11 +1190,7 @@ ${index + 1}. [${issue.severity.toUpperCase()}] ${issue.description}
    ${issue.cwe ? `CWE: ${issue.cwe}` : ''}
    ${issue.owasp ? `OWASP: ${issue.owasp}` : ''}
 `).join('\n') : 'No issues found in this category'}
-
-').join('\n')}
-
-═══════════════════════════════════
-` : ''}
+`).join('\n')}
 
 ═════════════════════════════════════
 
@@ -1223,18 +1307,18 @@ export async function quickSecurityAudit(): Promise<string> {
     const result = await auditor.performFullAudit();
     
     // Extract key metrics for quick view
-    const auditResults = auditor['auditResults'];
-    if (!auditResults) {
+    const resultsArray = Array.from(auditor['auditResults'].values());
+    if (resultsArray.length === 0) {
         return 'No audit results available';
     }
     
-    const criticalCount = auditResults.filter(r => r.status === 'critical').length;
-    const highCount = auditResults.filter(r => r.status === 'high').length;
-    const mediumCount = auditResults.filter(r => r.status === 'medium').length;
-    const lowCount = auditResults.filter(r => r.status === 'low').length;
-    const totalIssues = auditResults.reduce((sum, r) => sum + r.issues.length, 0);
+    const criticalCount = resultsArray.filter(r => r.status === 'critical').length;
+    const highCount = resultsArray.filter(r => r.status === 'high').length;
+    const mediumCount = resultsArray.filter(r => r.status === 'medium').length;
+    const lowCount = resultsArray.filter(r => r.status === 'low').length;
+    const totalIssues = resultsArray.reduce((sum, r) => sum + r.issues.length, 0);
     
-    const overallScore = auditor['calculateOverallScore'](auditResults);
+    const overallScore = auditor['calculateOverallScore'](resultsArray);
     
     return `
 ╔══════════════════════════════════════════╗

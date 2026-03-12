@@ -67,10 +67,16 @@ export const OPA_Plugin = {
                                   args.includes('privacy-first') ? 'privacy-first-operations' :
                                   args.includes('bug-bounty') ? 'bug-bounty' : 'complete-security-audit';
                 
-                return await executeStrategy(strategyId, target, {
-                    parallelExecution: args.includes('parallel'),
-                    maxConcurrency: args.includes('max-concurrency') ? parseInt(args.split('max-concurrency=')[1]) : undefined
-                });
+                const params: Record<string, any> = {
+                    parallelExecution: args.includes('parallel')
+                };
+
+                if (args.includes('max-concurrency')) {
+                    const match = args.split('max-concurrency=')[1];
+                    if (match) params.maxConcurrency = parseInt(match);
+                }
+                
+                return await executeStrategy(strategyId, target, params);
             },
             requiresApproval: false // Automated strategy execution
         },

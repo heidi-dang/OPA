@@ -23,37 +23,26 @@ import {
 } from './suggestions.js';
 
 import { 
-    osintRecon,
     executeParallelTasks,
     parallelScan
 } from './parallel_engine.js';
 
 import { 
-    runNuclei,
-    searchsploitQuery,
-    nmapScan,
-    parsePcap,
-    generateReport,
-    fuzzBypass,
-    generateBotScript,
-    sweepLocalNetwork,
-    cryptoAudit,
-    analyzeWpaHandshake,
-    diagnoseIspThrottling,
-    maskIp
+    osintRecon
 } from './osint.js';
-import './nuclei.js';
-import './searchsploit.js';
-import './nmap.js';
-import './pcap.js';
-import './report.js';
-import './fuzz.js';
-import './bot.js';
-import './sweep.js';
-import './crypto.js';
-import './wireless.js';
-import './isp.js';
-import './mask.js';
+
+import { runNuclei } from './nuclei.js';
+import { searchsploitQuery } from './searchsploit.js';
+import { nmapScan } from './nmap.js';
+import { parsePcap } from './pcap.js';
+import { generateReport } from './report.js';
+import { fuzzBypass } from './bypass.js';
+import { generateBotScript } from './bot.js';
+import { sweepLocalNetwork } from './sweep.js';
+import { cryptoAudit } from './crypto.js';
+import { analyzeWpaHandshake } from './wireless.js';
+import { diagnoseIspThrottling } from './isp.js';
+import { maskIp } from './mask.js';
 
 import { 
     deploySandboxAsNeeded,
@@ -74,9 +63,9 @@ import {
     quickWebSearch
 } from './web_search.js';
 
-import type { BaseTask, TaskStatus, TaskPriority, TaskCategory } from './task_types.js';
+import type { BaseTask, TaskStatus, TaskPriority } from './task_types.js';
 
-interface AutomationGoal {
+export interface AutomationGoal {
     id: string;
     name: string;
     description: string;
@@ -94,7 +83,7 @@ interface AutomationGoal {
     nextActions?: string[];
 }
 
-interface AutomationStrategy {
+export interface AutomationStrategy {
     name: string;
     description: string;
     goals: AutomationGoal[];
@@ -105,7 +94,7 @@ interface AutomationStrategy {
     timeoutMinutes: number;
 }
 
-interface AutomationStep {
+export interface AutomationStep {
     id: string;
     name: string;
     description: string;
@@ -115,9 +104,10 @@ interface AutomationStep {
     timeoutMinutes?: number;
     retryOnFailure?: boolean;
     continueOnError?: boolean;
+    maxConcurrency?: number;
 }
 
-interface AutomationResult {
+export interface AutomationResult {
     success: boolean;
     goals: AutomationGoal[];
     completedSteps: AutomationStep[];
@@ -140,22 +130,40 @@ export class WorkflowAutomationEngine {
         this.goals = new Map();
         this.strategies = new Map();
         this.executionHistory = [];
-        this.initializeDefaultStrategies();
+        this.initializeStrategyRegistry();
     }
 
     /**
-     * Initialize default automation strategies
+     * Initialize strategy registry and register default strategies
      */
-    private initializeDefaultStrategies(): void {
-        // Complete Security Assessment Strategy
-        const securityAssessmentGoals: AutomationGoal[] = [
+    private initializeStrategyRegistry(): void {
+        console.log('🏗️ Initializing OPA Automation Strategy Registry...');
+        
+        // Register Complete Security Assessment
+        this.registerSecurityAuditStrategy();
+        
+        // Register Rapid Intelligence Gathering
+        this.registerRapidIntelligenceStrategy();
+        
+        // Register Privacy-First Operations
+        this.registerPrivacyFirstStrategy();
+        
+        // Register Bug Bounty Hunting
+        this.registerBugBountyStrategy();
+    }
+
+    /**
+     * Register Complete Security Assessment strategy
+     */
+    private registerSecurityAuditStrategy(): void {
+        const goals: AutomationGoal[] = [
             {
                 id: 'recon-objective',
                 name: 'Reconnaissance Objective',
                 description: 'Gather comprehensive intelligence about target',
                 category: 'recon',
-                priority: 'critical' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'critical',
+                status: 'pending',
                 totalSteps: 5,
                 completedSteps: [],
                 progress: 0
@@ -165,8 +173,8 @@ export class WorkflowAutomationEngine {
                 name: 'Vulnerability Assessment',
                 description: 'Identify and analyze security vulnerabilities',
                 category: 'security',
-                priority: 'critical' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'critical',
+                status: 'pending',
                 totalSteps: 4,
                 completedSteps: [],
                 progress: 0
@@ -176,8 +184,8 @@ export class WorkflowAutomationEngine {
                 name: 'Exploitation Testing',
                 description: 'Test identified vulnerabilities safely',
                 category: 'security',
-                priority: 'high' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'high',
+                status: 'pending',
                 totalSteps: 3,
                 completedSteps: [],
                 progress: 0
@@ -187,8 +195,8 @@ export class WorkflowAutomationEngine {
                 name: 'Report Generation',
                 description: 'Create comprehensive security assessment report',
                 category: 'reporting',
-                priority: 'medium' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'medium',
+                status: 'pending',
                 totalSteps: 2,
                 completedSteps: [],
                 progress: 0
@@ -198,67 +206,39 @@ export class WorkflowAutomationEngine {
         this.strategies.set('complete-security-audit', {
             name: 'Complete Security Assessment',
             description: 'Comprehensive security assessment including reconnaissance, vulnerability scanning, exploitation testing, and reporting',
-            goals: securityAssessmentGoals,
+            goals: goals,
             steps: [
                 {
-                    id: 'setup-anonymity',
-                    name: 'Setup Complete Anonymity',
-                    description: 'Configure Tor, proxy, and system hardening',
-                    tool: 'quick_anonymous_setup',
-                    parameters: { enforceAnonymity: true, torBrowserIntegration: true },
-                    timeoutMinutes: 10,
-                    retryOnFailure: true
+                    id: 'step-1',
+                    name: 'Initial Recon',
+                    description: 'Run initial reconnaissance tools',
+                    tool: 'quick_recon',
+                    timeoutMinutes: 10
                 },
                 {
-                    id: 'comprehensive-recon',
-                    name: 'Comprehensive Reconnaissance',
-                    description: 'Execute multi-source intelligence gathering',
-                    tool: 'full_anonymous_workflow',
-                    parameters: { workflow: 'recon' },
-                    timeoutMinutes: 30,
-                    retryOnFailure: true
-                },
-                {
-                    id: 'vulnerability-scan',
-                    name: 'Vulnerability Scanning',
-                    description: 'Scan for vulnerabilities using multiple tools',
-                    tool: 'parallel_scan',
-                    parameters: { tools: 'run_nuclei,nmap_scan,searchsploit_query' },
-                    timeoutMinutes: 45
-                },
-                {
-                    id: 'targeted-exploitation',
-                    name: 'Targeted Exploitation Testing',
-                    description: 'Test specific vulnerabilities with controlled exploitation',
-                    tool: 'run_nuclei',
-                    parameters: { templates: 'cves,exposures' },
-                    timeoutMinutes: 30,
-                    continueOnError: false
-                },
-                {
-                    id: 'generate-report',
-                    name: 'Generate Final Report',
-                    description: 'Create comprehensive security assessment report',
-                    tool: 'generate_report',
-                    parameters: { format: 'detailed', includeEvidence: true },
+                    id: 'step-2',
+                    name: 'Target OSINT',
+                    description: 'Analyze target footprint',
+                    tool: 'osint_recon',
                     timeoutMinutes: 15
                 }
             ],
             parallelExecution: true,
-            maxConcurrency: 3,
+            maxConcurrency: 2,
             retryAttempts: 3,
-            timeoutMinutes: 120
+            timeoutMinutes: 60
         });
+    }
 
-        // Rapid Intelligence Gathering Strategy
-        const intelligenceGoals: AutomationGoal[] = [
+    private registerRapidIntelligenceStrategy(): void {
+        const goals: AutomationGoal[] = [
             {
                 id: 'osint-collection',
                 name: 'OSINT Collection',
                 description: 'Gather open-source intelligence quickly',
                 category: 'intelligence',
-                priority: 'high' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'high',
+                status: 'pending',
                 totalSteps: 3,
                 completedSteps: [],
                 progress: 0
@@ -268,8 +248,8 @@ export class WorkflowAutomationEngine {
                 name: 'Comprehensive Web Search',
                 description: 'Search across multiple engines for intelligence',
                 category: 'intelligence',
-                priority: 'high' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'high',
+                status: 'pending',
                 totalSteps: 2,
                 completedSteps: [],
                 progress: 0
@@ -279,8 +259,8 @@ export class WorkflowAutomationEngine {
                 name: 'Threat Analysis',
                 description: 'Analyze current threats and security landscape',
                 category: 'intelligence',
-                priority: 'medium' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'medium',
+                status: 'pending',
                 totalSteps: 2,
                 completedSteps: [],
                 progress: 0
@@ -290,7 +270,7 @@ export class WorkflowAutomationEngine {
         this.strategies.set('rapid-intelligence', {
             name: 'Rapid Intelligence Gathering',
             description: 'Quick intelligence collection from multiple sources',
-            goals: intelligenceGoals,
+            goals: goals,
             steps: [
                 {
                     id: 'quick-osint',
@@ -322,16 +302,17 @@ export class WorkflowAutomationEngine {
             retryAttempts: 2,
             timeoutMinutes: 60
         });
+    }
 
-        // Privacy-First Operations Strategy
-        const privacyGoals: AutomationGoal[] = [
+    private registerPrivacyFirstStrategy(): void {
+        const goals: AutomationGoal[] = [
             {
                 id: 'anonymity-enforcement',
                 name: 'Anonymity Enforcement',
                 description: 'Ensure complete anonymity before any operations',
                 category: 'privacy',
-                priority: 'critical' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'critical',
+                status: 'pending',
                 totalSteps: 1,
                 completedSteps: [],
                 progress: 0
@@ -341,7 +322,7 @@ export class WorkflowAutomationEngine {
         this.strategies.set('privacy-first-operations', {
             name: 'Privacy-First Operations',
             description: 'Execute all operations with maximum anonymity protection enforced',
-            goals: privacyGoals,
+            goals: goals,
             steps: [
                 {
                     id: 'mandatory-anonymity',
@@ -359,16 +340,17 @@ export class WorkflowAutomationEngine {
             retryAttempts: 5,
             timeoutMinutes: 60
         });
+    }
 
-        // Bug Bounty Strategy
-        const bugBountyGoals: AutomationGoal[] = [
+    private registerBugBountyStrategy(): void {
+        const goals: AutomationGoal[] = [
             {
                 id: 'vulnerability-discovery',
                 name: 'Vulnerability Discovery',
                 description: 'Find new vulnerabilities using various techniques',
                 category: 'security',
-                priority: 'high' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'high',
+                status: 'pending',
                 totalSteps: 4,
                 completedSteps: [],
                 progress: 0
@@ -378,8 +360,8 @@ export class WorkflowAutomationEngine {
                 name: 'Vulnerability Validation',
                 description: 'Validate and document discovered vulnerabilities',
                 category: 'security',
-                priority: 'high' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'high',
+                status: 'pending',
                 totalSteps: 3,
                 completedSteps: [],
                 progress: 0
@@ -389,8 +371,8 @@ export class WorkflowAutomationEngine {
                 name: 'Proof of Concept',
                 description: 'Create working proof of concept for vulnerabilities',
                 category: 'exploitation',
-                priority: 'medium' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'medium',
+                status: 'pending',
                 totalSteps: 2,
                 completedSteps: [],
                 progress: 0
@@ -400,8 +382,8 @@ export class WorkflowAutomationEngine {
                 name: 'Bounty Report Generation',
                 description: 'Create professional bug bounty submission report',
                 category: 'reporting',
-                priority: 'medium' as TaskPriority,
-                status: 'pending' as TaskStatus,
+                priority: 'medium',
+                status: 'pending',
                 totalSteps: 2,
                 completedSteps: [],
                 progress: 0
@@ -411,7 +393,7 @@ export class WorkflowAutomationEngine {
         this.strategies.set('bug-bounty', {
             name: 'Bug Bounty Hunting',
             description: 'Systematic vulnerability discovery for bug bounty programs',
-            goals: bugBountyGoals,
+            goals: goals,
             steps: [
                 {
                     id: 'comprehensive-scan',
@@ -559,7 +541,7 @@ export class WorkflowAutomationEngine {
                     break;
 
                 case 'full_anonymous_workflow':
-                    const workflowResult = await fullAnonymousWorkflow(target, 'recon');
+                    const workflowResult = await fullAnonymousWorkflow(target);
                     success = workflowResult.includes('✅') || workflowResult.includes('completed');
                     if (!success) {
                         error = workflowResult;
@@ -613,12 +595,13 @@ export class WorkflowAutomationEngine {
                     break;
 
                 case 'generate_report':
-                    const reportResult = await generateReport('Automation completed', { 
-                        format: step.parameters?.format || 'detailed', 
-                        includeEvidence: step.parameters?.includeEvidence !== false,
-                        findings: 'Multiple tools executed via automation',
-                        recommendations: ['Review all generated artifacts'] 
-                    });
+                    const reportResult = await generateReport([{ 
+                        title: 'Automation Session Result',
+                        target: target,
+                        description: 'Summary of all automated steps executed in this session',
+                        severity: 'info',
+                        remediation: 'Review detailed artifacts for each step'
+                    }], step.parameters?.format === 'pdf' ? 'pdf' : 'markdown');
                     success = reportResult.includes('✅') || reportResult.includes('completed');
                     if (!success) {
                         error = reportResult;
@@ -637,24 +620,23 @@ export class WorkflowAutomationEngine {
                     break;
 
                 case 'intelligence_search':
-                    const query = step.parameters?.query || target;
-                    const options = step.parameters || {};
-                    const intelResult = await intelligenceSearch(query, options);
-                    success = intelResult.includes('✅') || intelResult.includes('completed');
+                    const intelSearchQuery = step.parameters?.query || `intelligence ${target}`;
+                    const intelSearchResult = await intelligenceSearch(intelSearchQuery);
+                    success = intelSearchResult.includes('✅') || intelSearchResult.includes('results');
                     if (!success) {
-                        error = intelResult;
+                        error = intelSearchResult;
                     }
-                    artifacts = [`Intelligence search results for ${query}`];
+                    artifacts = [`Intelligence search results for ${intelSearchQuery}`];
                     break;
 
                 case 'security_web_search':
-                    const query = step.parameters?.query || 'cybersecurity threats';
-                    const securityResult = await securityWebSearch(query);
-                    success = securityResult.includes('✅') || securityResult.includes('completed');
+                    const secSearchQuery = step.parameters?.query || `security risks ${target}`;
+                    const secSearchResult = await securityWebSearch(secSearchQuery);
+                    success = secSearchResult.includes('✅') || secSearchResult.includes('results');
                     if (!success) {
-                        error = securityResult;
+                        error = secSearchResult;
                     }
-                    artifacts = [`Security search results for ${query}`];
+                    artifacts = [`Security search results for ${secSearchQuery}`];
                     break;
 
                 case 'quick_web_search':
@@ -675,8 +657,9 @@ export class WorkflowAutomationEngine {
 
             // Apply timeout if specified
             if (step.timeoutMinutes && success) {
+                const timeoutMinutes = step.timeoutMinutes || 10;
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error(`Step ${step.name} timed out after ${step.timeoutMinutes} minutes`)), step.timeoutMinutes * 60 * 1000);
+                    setTimeout(() => reject(new Error(`Step ${step.name} timed out after ${timeoutMinutes} minutes`)), timeoutMinutes * 60 * 1000);
                 });
 
                 try {
@@ -687,7 +670,11 @@ export class WorkflowAutomationEngine {
                 }
             }
 
-            return { success, artifacts, error };
+            const returnResult: { success: boolean; artifacts?: string[]; error?: string } = { success };
+            if (artifacts.length > 0) returnResult.artifacts = artifacts;
+            if (error) returnResult.error = error;
+            
+            return returnResult;
 
         } catch (error: any) {
             return {
@@ -702,22 +689,21 @@ export class WorkflowAutomationEngine {
      */
     private updateGoalProgress(goals: AutomationGoal[], stepId: string, stepResult: { success: boolean; artifacts?: string[]; error?: string }): void {
         goals.forEach(goal => {
-            if (goal.id && goal.completedSteps.includes(stepId)) {
-                if (stepResult.success) {
-                    goal.completedSteps.push(stepId);
-                    goal.progress = Math.round((goal.completedSteps.length / goal.totalSteps) * 100);
+            // Simplified logic: for now, we'll assume all steps contribute to all goals for that strategy
+            if (stepResult.success && !goal.completedSteps.includes(stepId)) {
+                goal.completedSteps.push(stepId);
+                goal.progress = Math.round((goal.completedSteps.length / goal.totalSteps) * 100);
+            }
+            
+            if (stepResult.artifacts) {
+                if (!goal.artifacts) {
+                    goal.artifacts = [];
                 }
-                
-                if (stepResult.artifacts) {
-                    if (!goal.artifacts) {
-                        goal.artifacts = [];
-                    }
-                    goal.artifacts.push(...stepResult.artifacts);
-                }
-                
-                if (stepResult.error) {
-                    goal.status = 'failed' as TaskStatus;
-                }
+                goal.artifacts.push(...stepResult.artifacts);
+            }
+            
+            if (stepResult.error) {
+                goal.status = 'failed' as TaskStatus;
             }
         });
     }
@@ -831,9 +817,12 @@ NO AUTOMATION HISTORY AVAILABLE
 
 Available Strategies:
 ${engine.getAvailableStrategies().map(id => {
-    const strategy = engine.getStrategy(id);
-    return `• ${strategy.name} - ${strategy.description}`;
-}).join('\n')}
+                const strategy = engine.getStrategy(id);
+                if (strategy) {
+                    return `• ${strategy.name} - ${strategy.description}`;
+                }
+                return `• Unknown strategy (${id})`;
+            }).join('\n')}
 
 ═══════════════════════════════════
 
