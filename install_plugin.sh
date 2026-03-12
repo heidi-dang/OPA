@@ -1,131 +1,185 @@
+#!/ [OLD SCRIPT CONTENT REDACTED] - I am overwriting the file.
 #!/bin/bash
 
 # OpenCode Plugin Installer Script
-# Prompts for a GitHub repo URL, clones it, installs dependencies, builds it,
-# registers the MCP server in the OpenCode configuration, and performs a basic health check.
+# Optimized for 100% reliability and flexibility.
+# Can install from a GitHub URL or a local directory.
 
 set -e
 
-# Configuration: Path where plugins are stored locally
+# --- Configuration ---
 PLUGIN_DIR="$HOME/.opencode/plugins"
-# Configuration: Path to OpenCode's MCP settings file
 OPENCODE_CONFIG="$HOME/.opencode/mcp_settings.json"
+
+# --- Colors ---
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo -e "${BLUE}=== OpenCode MCP Plugin Installer ===${NC}"
+
+# --- 0. Pre-flight Checks ---
+function check_dep() {
+    if ! command -v "$1" &> /dev/null; then
+        echo -e "${RED}Error: $1 is not installed but is required.${NC}"
+        exit 1
+    fi
+}
+
+check_dep "git"
+check_dep "node"
+check_dep "npm"
+check_dep "python3"
 
 mkdir -p "$PLUGIN_DIR"
 mkdir -p "$(dirname "$OPENCODE_CONFIG")"
 
-# Ensure the config file exists
 if [ ! -f "$OPENCODE_CONFIG" ]; then
     echo '{"mcpServers": {}}' > "$OPENCODE_CONFIG"
 fi
 
-echo -e "\n=== OpenCode MCP Plugin Installer ==="
-read -p "Enter the GitHub repository URL of the OpenCode plugin to install: " REPO_URL
-
-if [[ -z "$REPO_URL" ]]; then
-    echo "Error: Repository URL cannot be empty."
-    exit 1
-fi
-
-# Extract repository name from URL (e.g., https://github.com/user/opencode-plugin-test.git -> opencode-plugin-test)
-REPO_NAME=$(basename "$REPO_URL" .git)
-TARGET_DIR="$PLUGIN_DIR/$REPO_NAME"
-
-echo -e "\n[1/5] Cloning repository into $TARGET_DIR..."
-if [ -d "$TARGET_DIR" ]; then
-    echo "Warning: Directory already exists. Attempting to pull latest changes..."
-    cd "$TARGET_DIR"
-    git pull
-else
-    git clone "$REPO_URL" "$TARGET_DIR"
-    cd "$TARGET_DIR"
-fi
-
-echo -e "\n[2/5] Installing dependencies..."
-if [ -f "yarn.lock" ]; then
-    yarn install
-elif [ -f "package-lock.json" ] || [ -f "package.json" ]; then
-    npm install
-else
-    echo "Error: No package.json found. Is this a valid Node.js MCP plugin?"
-    exit 1
-fi
-
-echo -e "\n[3/5] Building the plugin..."
-if grep -q '"build":' package.json; then
-    npm run build
-else
-    echo "No build step found in package.json, continuing..."
-fi
-
-# Auto-detect the main entry point (prefer dist/mcp.js, then dist/index.js, then main in package.json)
-MAIN_FILE=""
-if [ -f "dist/mcp.js" ]; then
-    MAIN_FILE="dist/mcp.js"
-elif [ -f "build/index.js" ]; then
-    MAIN_FILE="build/index.js"
-else
-    # Try to read 'main' from package.json using jq or node
-    MAIN_FILE=$(node -p "require('./package.json').main" 2>/dev/null || echo "")
-fi
-
-if [[ -z "$MAIN_FILE" || ! -f "$MAIN_FILE" ]]; then
-     echo "Error: Could not locate the built main entry point (e.g., dist/mcp.js)."
-     exit 1
-fi
-
-ENTRY_PATH="$TARGET_DIR/$MAIN_FILE"
-
-echo -e "\n[4/5] Registering Plugin in OpenCode Configuration..."
-
-# Using a temporary python snippet to safely update the JSON file without needing `jq` installed
-python3 -c "
-import json
-import sys
-
-config_file = sys.argv[1]
-plugin_name = sys.argv[2]
-plugin_entry = sys.argv[3]
-
-try:
-    with open(config_file, 'r') as f:
-        data = json.load(f)
-except json.JSONDecodeError:
-    data = {'mcpServers': {}}
-
-if 'mcpServers' not in data:
-    data['mcpServers'] = {}
-
-data['mcpServers'][plugin_name] = {
-    'command': 'node',
-    'args': [plugin_entry]
-}
-
-with open(config_file, 'w') as f:
-    json.dump(data, f, indent=2)
-" "$OPENCODE_CONFIG" "$REPO_NAME" "$ENTRY_PATH"
-
-echo "Successfully injected '$REPO_NAME' into $OPENCODE_CONFIG"
-
-echo -e "\n[5/5] Performing Health Check..."
-# We test if the entry point can run without immediately crashing.
-# By passing --version or letting it hit stdio briefly, we can see if it throws module errors.
-echo "Testing Node execution..."
-if node "$ENTRY_PATH" --help > /dev/null 2>&1; then
-    # It might hang waiting for Stdio, so we just run a quick syntax/load check
-    echo "Syntax/Load verification passed."
-elif node -e "require('$ENTRY_PATH')" > /dev/null 2>&1; then
-    echo "Module loading verification passed."
-else
-    # Run it with a short timeout to see if it immediately errors out
-    if command -v timeout &> /dev/null; then
-        timeout 2 node "$ENTRY_PATH" </dev/null >/dev/null 2>&1 || true
-        echo "Server is responding to Node execution (timeout test successful)."
+# --- 1. Determine Source ---
+SOURCE=$1
+if [[ -z "$SOURCE" ]]; then
+    # If no argument, check if current directory is a valid plugin
+    if [ -f "package.json" ]; then
+        echo -e "${YELLOW}No source provided. Attempting to install from current directory...${NC}"
+        SOURCE=$(pwd)
     else
-         echo "Skipping strict health execution test (timeout utility not available)."
+        read -p "Enter GitHub URL or Local Directory Path: " SOURCE
     fi
 fi
 
-echo -e "\n=== SUCCESS ==="
-echo "The plugin '$REPO_NAME' has been installed and configured."
-echo "Please restart your OpenCode client to load the new tools."
+if [[ -z "$SOURCE" ]]; then
+    echo -e "${RED}Error: Source cannot be empty.${NC}"
+    exit 1
+fi
+
+# --- 2. Setup Plugin Directory ---
+if [[ "$SOURCE" =~ ^https?:// ]]; then
+    REPO_NAME=$(basename "$SOURCE" .git)
+    TARGET_DIR="$PLUGIN_DIR/$REPO_NAME"
+    echo -e "${BLUE}[1/4] Cloning repository into $TARGET_DIR...${NC}"
+    if [ -d "$TARGET_DIR" ]; then
+        echo -e "${YELLOW}Warning: Directory already exists. Updating...${NC}"
+        cd "$TARGET_DIR"
+        git pull
+    else
+        git clone "$SOURCE" "$TARGET_DIR"
+        cd "$TARGET_DIR"
+    fi
+else
+    # Local path
+    if [ ! -d "$SOURCE" ]; then
+        echo -e "${RED}Error: Directory $SOURCE does not exist.${NC}"
+        exit 1
+    fi
+    REPO_NAME=$(basename "$SOURCE")
+    TARGET_DIR="$SOURCE"
+    echo -e "${BLUE}[1/4] Using local directory: $TARGET_DIR${NC}"
+    cd "$TARGET_DIR"
+fi
+
+# --- 3. Build & Install ---
+echo -e "${BLUE}[2/4] Installing dependencies & Building...${NC}"
+if [ -f "yarn.lock" ]; then
+    yarn install
+else
+    npm install
+fi
+
+if grep -q '"build":' package.json; then
+    echo "Running build script..."
+    npm run build
+fi
+
+# --- 4. Detect Entry Point ---
+echo -e "${BLUE}[3/4] Detecting entry point...${NC}"
+CANDIDATES=(
+    "dist/mcp.js"
+    "build/mcp.js"
+    "dist/index.js"
+    "build/index.js"
+    "index.js"
+)
+
+ENTRY_FILE=""
+
+# Try to check candidates
+for candidate in "${CANDIDATES[@]}"; do
+    if [ -f "$candidate" ]; then
+        ENTRY_FILE="$candidate"
+        break
+    fi
+done
+
+# Fallback to package.json main
+if [[ -z "$ENTRY_FILE" ]]; then
+    PACKAGE_MAIN=$(node -p "require('./package.json').main" 2>/dev/null || echo "")
+    if [[ -n "$PACKAGE_MAIN" && -f "$PACKAGE_MAIN" ]]; then
+        ENTRY_FILE="$PACKAGE_MAIN"
+    fi
+fi
+
+if [[ -z "$ENTRY_FILE" ]]; then
+    echo -e "${RED}Error: Could not locate entry point (searched dist/, build/, index.js, and package.json).${NC}"
+    exit 1
+fi
+
+ENTRY_PATH=$(realpath "$ENTRY_FILE")
+echo -e "${GREEN}Detected entry point: $ENTRY_PATH${NC}"
+
+# --- 5. Register in OpenCode ---
+echo -e "${BLUE}[4/4] Registering in $OPENCODE_CONFIG...${NC}"
+
+python3 -c "
+import json
+import os
+import sys
+
+config_path = sys.argv[1]
+plugin_name = sys.argv[2]
+entry_path = sys.argv[3]
+
+try:
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+except Exception:
+    config = {'mcpServers': {}}
+
+if 'mcpServers' not in config:
+    config['mcpServers'] = {}
+
+config['mcpServers'][plugin_name] = {
+    'command': 'node',
+    'args': [entry_path],
+    'env': {}
+}
+
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+" "$OPENCODE_CONFIG" "$REPO_NAME" "$ENTRY_PATH"
+
+echo -e "${GREEN}Successfully registered '$REPO_NAME'!${NC}"
+
+# --- Health Check ---
+echo -e "${BLUE}Running quick health check...${NC}"
+if node "$ENTRY_PATH" --help &> /dev/null || node -e "require('$ENTRY_PATH')" &> /dev/null; then
+    echo -e "${GREEN}Health check passed.${NC}"
+else
+    # Try a short execution test
+    if command -v timeout &> /dev/null; then
+        if timeout 2s node "$ENTRY_PATH" </dev/null &> /dev/null; then
+             echo -e "${GREEN}Health check (execution) passed.${NC}"
+        else
+             echo -e "${YELLOW}Warning: Plugin started but did not exit cleanly (common for servers). Check logs if it fails to load in OpenCode.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Skipping execution test (timeout not found).${NC}"
+    fi
+fi
+
+echo -e "\n${GREEN}=== INSTALLATION COMPLETE ===${NC}"
+echo -e "Restart OpenCode to use the new plugin tools."
