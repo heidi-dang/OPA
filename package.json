@@ -1,0 +1,24 @@
+{
+  "name": "opa",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/mcp.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/mcp.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@e2b/code-interpreter": "^2.3.3",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "axios": "^1.13.6"
+  }
+}

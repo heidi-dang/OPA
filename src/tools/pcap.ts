@@ -1,0 +1,11 @@
+import { executeInSandbox } from '../sandbox.js';
+
+export async function parsePcap(filePath: string): Promise<string> {
+    // Using tshark in the sandbox to parse the PCAP file
+    // Assumes the file is made available inside the sandbox context
+    const command = `tshark -r ${filePath} -T fields -e tcp.payload -Y 'http or telnet or ftp'`;
+    console.log(`[Tool: parse_pcap] Parsing PCAP via sandbox...`);
+    
+    const result = await executeInSandbox(command, 'bash');
+    return result;
+}
